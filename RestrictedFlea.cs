@@ -1,20 +1,20 @@
-﻿using System.Reflection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using SPTarkov.DI.Annotations;
+using SPTarkov.Reflection.Patching;
 using SPTarkov.Server.Core.Controllers;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Helpers;
 using SPTarkov.Server.Core.Models.Common;
+using SPTarkov.Server.Core.Models.Eft.Common;
+using SPTarkov.Server.Core.Models.Eft.ItemEvent;
+using SPTarkov.Server.Core.Models.Eft.Ragfair;
 using SPTarkov.Server.Core.Models.Spt.Config;
 using SPTarkov.Server.Core.Models.Spt.Mod;
 using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Server.Core.Routers;
 using SPTarkov.Server.Core.Servers;
 using SPTarkov.Server.Core.Utils;
-using SPTarkov.Server.Core.Models.Eft.Ragfair;
-using SPTarkov.Server.Core.Models.Eft.ItemEvent;
-using SPTarkov.Server.Core.Routers;
-using SPTarkov.Server.Core.Generators;
-using SPTarkov.Server.Core.Services;
-using SPTarkov.Server.Core.Models.Eft.Common;
+using System.Reflection;
 
 namespace RestrictedFlea;
 
@@ -23,7 +23,7 @@ public record ModMetadata : AbstractModMetadata {
     public override string Name { get; init; } = "RestrictedFlea";
     public override string Author { get; init; } = "Mattdokn";
     public override List<string>? Contributors { get; init; }
-    public override SemanticVersioning.Version Version { get; init; } = new("1.0.0");
+    public override SemanticVersioning.Version Version { get; init; } = new("1.0.1");
     public override SemanticVersioning.Range SptVersion { get; init; } = new("~4.0.0");
     public override List<string>? Incompatibilities { get; init; }
     public override Dictionary<string, SemanticVersioning.Range>? ModDependencies { get; init; }
@@ -31,7 +31,6 @@ public record ModMetadata : AbstractModMetadata {
     public override bool? IsBundleMod { get; init; } = false;
     public override string License { get; init; } = "MIT";
 }
-
 
 [Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 100)]
 public class RestrictedFlea(
@@ -88,70 +87,23 @@ public class RestrictedFlea(
     }
 }
 
-[Injectable]
-public class RagfairControllerExtension(
-    ISptLogger<RagfairController> logger,
-    TimeUtil timeUtil,
-    JsonUtil jsonUtil,
-    HttpResponseUtil httpResponseUtil,
-    EventOutputHolder eventOutputHolder,
-    RagfairServer ragfairServer,
-    ItemHelper itemHelper,
-    InventoryHelper inventoryHelper,
-    RagfairSellHelper ragfairSellHelper,
-    HandbookHelper handbookHelper,
-    ProfileHelper profileHelper,
-    PaymentHelper paymentHelper,
-    RagfairHelper ragfairHelper,
-    RagfairSortHelper ragfairSortHelper,
-    RagfairOfferHelper ragfairOfferHelper,
-    TraderHelper traderHelper,
-    DatabaseService databaseService,
-    ServerLocalisationService localisationService,
-    RagfairTaxService ragfairTaxService,
-    RagfairOfferService ragfairOfferService,
-    PaymentService paymentService,
-    RagfairPriceService ragfairPriceService,
-    RagfairOfferGenerator ragfairOfferGenerator,
-    ConfigServer configServer
-) : RagfairController(
-    logger,
-    timeUtil,
-    jsonUtil,
-    httpResponseUtil,
-    eventOutputHolder,
-    ragfairServer,
-    itemHelper,
-    inventoryHelper,
-    ragfairSellHelper,
-    handbookHelper,
-    profileHelper,
-    paymentHelper,
-    ragfairHelper,
-    ragfairSortHelper,
-    ragfairOfferHelper,
-    traderHelper,
-    databaseService,
-    localisationService,
-    ragfairTaxService,
-    ragfairOfferService,
-    paymentService,
-    ragfairPriceService,
-    ragfairOfferGenerator,
-    configServer
-    ) {
-
-    public override ItemEventRouterResponse AddPlayerOffer(PmcData pmcData, AddOfferRequestData offerRequest, MongoId sessionID) {
-        if (!RestrictedFlea.config!.AllowSellingToFlea) {
-            ItemEventRouterResponse output = eventOutputHolder.GetOutput(sessionID);
-            return httpResponseUtil.AppendErrorToOutput(output, "Selling to flea has been disabled.");
-        }
-        return base.AddPlayerOffer(pmcData, offerRequest, sessionID);
+[Injectable(TypePriority = OnLoadOrder.PreSptModLoader)]
+public class PatchRagfairController : AbstractPatch, IOnLoad {
+    public Task OnLoad() {
+        Enable();
+        return Task.CompletedTask;
     }
 
+    protected override MethodBase? GetTargetMethod() => typeof(RagfairController).GetMethod(nameof(RagfairController.AddPlayerOffer));
+
+    [PatchPrefix]
+    public static bool AddPlayerOffer(ref ItemEventRouterResponse __result, PmcData pmcData, AddOfferRequestData offerRequest, MongoId sessionID) {
+        if (RestrictedFlea.config!.AllowSellingToFlea) return true;
+        ItemEventRouterResponse output = ServiceLocator.ServiceProvider.GetService<EventOutputHolder>().GetOutput(sessionID);
+        __result = ServiceLocator.ServiceProvider.GetService<HttpResponseUtil>().AppendErrorToOutput(output, "Selling to flea has been disabled.");
+        return false;
+    }
 }
-
-
 
 public record ModConfig {
     public required bool EnableBsgBlacklist { get; set; } = true;
