@@ -88,8 +88,15 @@ public class RestrictedFlea(
 }
 
 [Injectable(TypePriority = OnLoadOrder.PreSptModLoader)]
-public class PatchRagfairController : AbstractPatch, IOnLoad {
+public class RagfairControllerPatch(
+        EventOutputHolder eventOutputHolder,
+        HttpResponseUtil httpResponseUtil
+    ) : AbstractPatch, IOnLoad {
+    static EventOutputHolder _eventOutputHolder;
+    static HttpResponseUtil _httpResponseUtil;
     public Task OnLoad() {
+        _eventOutputHolder = eventOutputHolder;
+        _httpResponseUtil = httpResponseUtil;
         Enable();
         return Task.CompletedTask;
     }
@@ -99,8 +106,8 @@ public class PatchRagfairController : AbstractPatch, IOnLoad {
     [PatchPrefix]
     public static bool AddPlayerOffer(ref ItemEventRouterResponse __result, PmcData pmcData, AddOfferRequestData offerRequest, MongoId sessionID) {
         if (RestrictedFlea.config!.AllowSellingToFlea) return true;
-        ItemEventRouterResponse output = ServiceLocator.ServiceProvider.GetService<EventOutputHolder>().GetOutput(sessionID);
-        __result = ServiceLocator.ServiceProvider.GetService<HttpResponseUtil>().AppendErrorToOutput(output, "Selling to flea has been disabled.");
+        ItemEventRouterResponse output = _eventOutputHolder.GetOutput(sessionID);
+        __result = _httpResponseUtil.AppendErrorToOutput(output, "Selling to flea has been disabled.");
         return false;
     }
 }
