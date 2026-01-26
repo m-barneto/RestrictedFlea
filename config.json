@@ -1,0 +1,13 @@
+{
+    "EnableBsgBlacklist": false,
+    "AllowSellingToFlea": false,
+    "Whitelist": [
+        "5448eb774bdc2d0a728b4567",
+        "543be5e94bdc2df1348b4568",
+		"5422acb9af1c889c16000029",
+        "590c745b86f7743cc433c5f2",
+		"5448fe124bdc2da5018b4567",
+		"543be6674bdc2df1348b4569",
+		"5448ecbe4bdc2d60728b4568"
+    ]
+}
